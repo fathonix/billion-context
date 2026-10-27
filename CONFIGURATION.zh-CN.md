@@ -279,6 +279,7 @@
 | `compress.neverPreserveRecentTools` | string[] ([] valid) | ["decompress", "search_context", "read", "bash"] (kernel) | — | 从近期保护区排除（立即可压）；空数组合法＝不排除任何工具（最大保护）。 |
 | `compress.preserveRecentTools` | string[] | n/a (subtraction form) | — | 减法形式：近期区工具减去本列表得到完全保护；此处空数组按笔误拒绝。 |
 | `compress.visibilityMarkers` | boolean | true | — | 在 compress/decompress/search_context/acp_status 结果后追加可见性标记；关闭可抑制模型模仿叙述。 |
+| `compress.streamMarkers` | boolean | true | BILI_STREAM_MARKERS | 向客户端增量流输出可见性回执；关闭后标记仅保留在历史记录中。 |
 | `compress.rules` | boolean | false | — | 通过注入的 acp_rule 工具提供持久模型提醒——对折叠硬保护；pi/omp 提供 /acp-rule 命令。仅代理模式生效——插件模式下宿主自管工具面，此项无效。 |
 | `compress.injectTool` | boolean | true | ACP_COMPRESS_TOOL | 向客户端注册 acp_compress 工具（仅全局层级生效）。 |
 | `compress.injectNudge` | boolean | true | ACP_COMPRESS_NUDGE | 窗口填满过程中发送增长提醒（仅全局层级生效）。 |
@@ -1853,6 +1854,7 @@ ACP 原生 agent（当前为 `pi` 扩展）会在每个进程内向代理上报�
 | `BILI_STORAGE_WAL_JOURNAL_SIZE_LIMIT_BYTES` | `storage.walJournalSizeLimitBytes` | 8388608 |
 | `BILI_STREAM_ERROR_SHAPE` | `compat.streamErrorShape` | protocol |
 | `BILI_STREAM_KEEPALIVE_MS` | `network.streamKeepAliveMs` | 15000 (0 disables) |
+| `BILI_STREAM_MARKERS` | `compress.streamMarkers` | true |
 | `BILI_SUBAGENT_SPLIT` | `subagentSplit` | true |
 | `BILI_THROTTLE_429` | `network.throttle429Enabled` | true |
 | `BILI_THROTTLE_429_BASE_DELAY_MS` | `network.throttle429BaseDelayMs` | 2000 |

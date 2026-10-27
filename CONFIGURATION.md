@@ -279,6 +279,7 @@ This index is generated from `website/config-reference/*.yaml` — edit the seed
 | `compress.neverPreserveRecentTools` | string[] ([] valid) | ["decompress", "search_context", "read", "bash"] (kernel) | — | Excluded from the recent protection zone (immediately compressible); an empty array excludes nothing (maximum protection). |
 | `compress.preserveRecentTools` | string[] | n/a (subtraction form) | — | Subtraction form: recent-zone tools minus this list get full protection; an empty array here is rejected as a typo. |
 | `compress.visibilityMarkers` | boolean | true | — | Append visibility markers after compress/decompress/search_context/acp_status results; off stops imitated narration. |
+| `compress.streamMarkers` | boolean | true | BILI_STREAM_MARKERS | Emit streaming visibility receipts into client delta streams; off keeps markers in history only. |
 | `compress.rules` | boolean | false | — | Persistent model reminders delivered through an injected acp_rule tool, hard-protected from folds; pi/omp expose an /acp-rule command. Proxy-mode only — inert in plugin mode, where the host owns the tool surface. |
 | `compress.injectTool` | boolean | true | ACP_COMPRESS_TOOL | Register the acp_compress tool for clients (global level only). |
 | `compress.injectNudge` | boolean | true | ACP_COMPRESS_NUDGE | Send growth nudges as the window fills (global level only). |
@@ -1870,6 +1871,7 @@ File keys resolve only when the matching env var is unset. Defaults in parenthes
 | `BILI_STORAGE_WAL_JOURNAL_SIZE_LIMIT_BYTES` | `storage.walJournalSizeLimitBytes` | 8388608 |
 | `BILI_STREAM_ERROR_SHAPE` | `compat.streamErrorShape` | protocol |
 | `BILI_STREAM_KEEPALIVE_MS` | `network.streamKeepAliveMs` | 15000 (0 disables) |
+| `BILI_STREAM_MARKERS` | `compress.streamMarkers` | true |
 | `BILI_SUBAGENT_SPLIT` | `subagentSplit` | true |
 | `BILI_THROTTLE_429` | `network.throttle429Enabled` | true |
 | `BILI_THROTTLE_429_BASE_DELAY_MS` | `network.throttle429BaseDelayMs` | 2000 |
