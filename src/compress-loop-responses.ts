@@ -32,6 +32,10 @@ interface CompressLoopResponsesCtx {
     /** #862: when `false`, suppress 📦/❌ visibility markers (same contract as
      *  LoopCtx.visibilityMarkers). Default (undefined) keeps markers on. */
     visibilityMarkers?: boolean;
+    /** #3906: when `false`, keep the receipt in rebuilt history but stop
+     *  appending it to the response items the caller streams. Same contract as
+     *  LoopCtx.streamMarkers. Default (undefined) keeps markers on. */
+    streamMarkers?: boolean;
 }
 
 interface RequestOptions {
@@ -126,7 +130,7 @@ async function surfaceProxyJson(
             result = `\u274c [ACP] ${call.name} FAILED: ${String(e)}`;
             ctx.log(`[acp-proxy: responses JSON ${call.name}${mutating ? "" : " (read-only)"} FAILED: ${String(e)}]`);
         }
-        if (ctx.visibilityMarkers !== false) markers.push(buildVisibilityMarker(call.name, result));
+        if (ctx.visibilityMarkers !== false && ctx.streamMarkers !== false) markers.push(buildVisibilityMarker(call.name, result));
     }
     if (markers.length === 0) return current;
     const out = Array.isArray(current.output) ? [...(current.output as unknown[])] : [];
