@@ -1218,7 +1218,18 @@ export async function* runCompressLoop(
                             ctx.log(`[acp-loop] suppressed duplicate ${call.name} status marker (identical failure repeated this request)`);
                         } else {
                             seenMarkers.add(markerKey);
-                            yield adapter.emitMarker(call.name, result.text);
+                            // #3906: streamMarkers=false keeps the receipt in the
+                            // rebuilt history (and in the round-N+1 system message
+                            // below) while keeping it OUT of the client's content
+                            // stream. The marker is an assistant-prose delta emitted
+                            // before the continuation re-request, so on a client that
+                            // keys one text part per assistant message (opencode's
+                            // openai-compatible transform uses a fixed txt-0) it opens
+                            // the text part and the round-2 answer merges into it while
+                            // round-2 reasoning opens a NEW part after it — the answer
+                            // renders above the thinking that produced it and the turn
+                            // appears to end mid-thought.
+                            if (ctx.streamMarkers !== false) yield adapter.emitMarker(call.name, result.text);
                         }
                     }
                 } else {
