@@ -467,9 +467,10 @@ export class SessionStore {
         // under shadow/legacy/encryption — there the JSON file is the sole
         // source of truth.
         const wantJsonWriterOff = knobResolveJsonWriterOff(process.env, fileStorageJsonWriter());
-        this.jsonWriterOff = wantJsonWriterOff && storageMode === "full" && !unifiedBlockedByEncryption && resolveBackendName(process.env, fileStorageBackend()) === "sqlite";
+        const backendName = resolveBackendName(process.env, fileStorageBackend());
+        this.jsonWriterOff = wantJsonWriterOff && storageMode === "full" && !unifiedBlockedByEncryption && (backendName === "sqlite" || backendName === "mysql");
         if (wantJsonWriterOff && !this.jsonWriterOff) {
-            baseLog("warn", "[storage] storage.jsonWriter=off ignored — requires storage.unified=full on the sqlite backend (network backends keep the JSON envelope as the sync read path)");
+            baseLog("warn", "[storage] storage.jsonWriter=off ignored — requires storage.unified=full on a supported backend (sqlite or mysql)");
         }
         const legacyLoad = (rec: unknown): LegacySessionLike | null => {
             const s = buildSession(rec as PersistedSession);
@@ -480,7 +481,6 @@ export class SessionStore {
         // this.shadow stays undefined and every surface keeps its documented
         // no-sidecar posture (envelope reads/writes, banner, replicas off).
         // `ready()` gates the async consumers (saves, boot, admin).
-        const backendName = resolveBackendName(process.env, fileStorageBackend());
         if (this.enabled && !unifiedBlockedByEncryption && backendName === "mysql") {
             this.mysqlReady = UnifiedShadow.openAsync(
                 this.sessionsDir,
