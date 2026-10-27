@@ -218,6 +218,8 @@ export interface LoopCtx {
      *  rebuilt history. Default (undefined) keeps markers on. Paired
      *  tool-call/tool-result messages are unaffected. */
     visibilityMarkers?: boolean;
+    /** #3906: when `false`, suppress only the streaming receipt emitted to the client (`emitMarker`) while keeping history markers intact. */
+    streamMarkers?: boolean;
     /** #1455: tee loop-originated upstream responses (re-request and every
      *  retry fetch) to raw SSE files — the outer request's ACP_DUMP_SSE tee
      *  only covers the FIRST response, so an internal re-request that dies

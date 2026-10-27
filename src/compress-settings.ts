@@ -93,6 +93,7 @@ export function mergeCompress(
         rules: pick("rules"),
 
         visibilityMarkers: pick("visibilityMarkers"),
+        streamMarkers: pick("streamMarkers"),
         streamSummary: pick("streamSummary"),
         // `reasoning` is a third nested-object field merged sub-field-wise
         // exactly like `absorb`/`prompts`: a model-level `threshold` must not
