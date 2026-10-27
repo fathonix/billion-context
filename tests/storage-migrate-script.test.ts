@@ -147,9 +147,9 @@ test("migrate-storage: v8 source migrates end-to-end with row, byte and view par
             assert.match(r.out, /\[migrate\] done/);
             const pool: Pool = await createPool({ uri: target, supportBigNumbers: true });
             try {
-                const [msgs] = (await pool.query("SELECT COUNT(*) AS n, SUM(CASE WHEN identity = '' THEN 1 ELSE 0 END) AS empty FROM messages")) as unknown as [{ n: number | string; empty: number | string | null }[]];
+                const [msgs] = (await pool.query("SELECT COUNT(*) AS n, SUM(CASE WHEN identity = '' THEN 1 ELSE 0 END) AS n_empty FROM messages")) as unknown as [{ n: number | string; n_empty: number | string | null }[]];
                 assert.equal(Number(msgs[0].n), 2, "both messages copied");
-                assert.equal(Number(msgs[0].empty ?? 0), 0, "v8 source already carries stamped identities");
+                assert.equal(Number(msgs[0].n_empty ?? 0), 0, "v8 source already carries stamped identities");
             } finally {
                 await pool.end();
             }
