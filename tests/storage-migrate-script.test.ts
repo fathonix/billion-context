@@ -140,8 +140,8 @@ test("migrate-storage: v8 source migrates end-to-end with row, byte and view par
         await withFreshSchema(async (target) => {
             const r = await runScript(["--from", db, "--to", target]);
             assert.equal(r.code, 0, `stdout: ${r.out}\nstderr: ${r.err}`);
-            assert.match(r.out, /content\s+\d+ rows ok/);
-            assert.match(r.out, /messages\s+\d+ rows ok/);
+            assert.match(r.out, /content:\s+\d+ rows ok/);
+            assert.match(r.out, /messages:\s+\d+ rows ok/);
             assert.match(r.out, /content bytes: \d+ ok/);
             assert.match(r.out, /read-back parity: 1 sessions identical/);
             assert.match(r.out, /\[migrate\] done/);
