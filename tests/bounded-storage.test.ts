@@ -120,9 +120,9 @@ test("releaseInFlight folds raw lastMessages to bounded view when request comple
     const session = getSession("ast-fold-test");
     acquireInFlight(session);
     session.lastMessages = [
-        { role: "user", text: "hello" },
-        { role: "assistant", text: "world" },
-        { role: "user", text: "more messages here" },
+        { id: "m1", role: "user", contentType: "text", text: "hello" },
+        { id: "m2", role: "assistant", contentType: "text", text: "world" },
+        { id: "m3", role: "user", contentType: "text", text: "more messages here" },
     ];
     session.lastMessagesFolded = false;
     assert.equal(session.lastMessages.length, 3);
