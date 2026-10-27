@@ -24,7 +24,7 @@
 import { log as loggerLog } from "../logger.js";
 import { planIngest, planIngestDelta, loadLegacyView, completeBlockContents, type LegacySessionLike } from "./ingest.ts";
 import type { BlockView } from "../session.js";
-import { resolveJsonWriterOff, resolveStorageMode, resolveStorageWalJournalSizeLimit, type StorageMode } from "../knobs.ts";
+import { resolveStorageMode, resolveStorageWalJournalSizeLimit, type StorageMode } from "../knobs.ts";
 import { UnifiedStore, StorageIntegrityError, type CheckpointRow, type SessionSummaryRow, type WebSummaryRow } from "./store.ts";
 import { renameSync } from "node:fs";
 import path from "node:path";
@@ -295,9 +295,7 @@ export class UnifiedShadow {
             await backend.init?.();
             const shadow = new UnifiedShadow(mode, null, legacyLoad ?? (() => null), backend);
             recordSidecarInstance(shadow);
-            const writerOff = resolveJsonWriterOff(env);
-            const writerOffNotice = writerOff ? "json envelopes off (writerOff enabled)" : "JSON envelopes keep being written";
-            loggerLog("info", `[storage] unified ${mode === "full" ? "FULL" : "shadow"} mode on the MYSQL backend (dsn host ${dsn.replace(/:[^:@/]*@/, ":***@")}) — async shadow facade; ${writerOffNotice}`);
+            loggerLog("info", `[storage] unified ${mode === "full" ? "FULL" : "shadow"} mode on the MYSQL backend (dsn host ${dsn.replace(/:[^:@/]*@/, ":***@")}) — async shadow facade; JSON envelopes keep being written (writerOff is sqlite-only)`);
             return shadow;
         } catch (err) {
             const errStr = String(err);
