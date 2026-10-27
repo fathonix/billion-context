@@ -1,7 +1,7 @@
 /** One-off migration: unified sqlite index.db -> MySQL/MariaDB backend.
  *
- *  Copies rows byte-for-byte (the mysql DDL in src/storage/mysql.ts is the
- *  same v7 shape as sqlite) instead of replaying sessions through
+ *  Copies rows byte-for-byte (the mysql DDL in src/storage/mysql.ts carries
+ *  the same shape as sqlite) instead of replaying sessions through
  *  ingestSession — a replay would re-serialize messages and could drop
  *  plan-space detail the rows already carry.
  *
@@ -10,13 +10,25 @@
  *  Run it against a COPY of index.db (VACUUM INTO inside the container), never
  *  against the live file. The target database must be empty or disposable:
  *  rows are REPLACE'd by primary key, so a re-run is idempotent.
+ *
+ *  Schema versions: sources stamped MIN_SOURCE_VERSION..STORAGE_SCHEMA_VERSION
+ *  are accepted (older stores lack tables this build reads; newer unknown
+ *  versions are refused so a future table can never be silently dropped).
+ *  v7 sources lack the #4390 identity columns, so after the copy the tool
+ *  backfills message identities on the target from the CAS bytes — the same
+ *  formula the mysql backend's own init backfill uses — or cross-save
+ *  identity joins would miss on every migrated row. The final read-back
+ *  parity opens the SOURCE through the app's own sqlite backend, which
+ *  auto-migrates a pre-v8 copy in place (harmless: you ran against a copy).
  */
 import { DatabaseSync } from "node:sqlite";
 import { createPool } from "mysql2/promise";
 import { openBackend } from "../src/storage/backend.ts";
 import { loadLegacyView } from "../src/storage/ingest.ts";
+import { STORAGE_SCHEMA_VERSION } from "../src/storage/schema.ts";
+import { identityOfStoredContent } from "../src/storage/identity.ts";
 
-const SCHEMA_VERSION = 7;
+const MIN_SOURCE_VERSION = 7;
 const TABLES = [
     "sessions",
     "content",
@@ -49,8 +61,8 @@ async function main(): Promise<void> {
 
     const db = new DatabaseSync(from, { readOnly: true });
     const version = (db.prepare("PRAGMA user_version").get() as { user_version?: number } | undefined)?.user_version;
-    if (version !== SCHEMA_VERSION) {
-        console.error(`[migrate] ${from}: schema version ${String(version)} != ${SCHEMA_VERSION} — open it with this build once, then retry`);
+    if (typeof version !== "number" || version < MIN_SOURCE_VERSION || version > STORAGE_SCHEMA_VERSION) {
+        console.error(`[migrate] ${from}: schema version ${String(version)} unsupported — this tool migrates ${MIN_SOURCE_VERSION}..${STORAGE_SCHEMA_VERSION} (older stores lack tables this build reads; newer versions need a tool update)`);
         process.exit(2);
     }
     const check = db.prepare("PRAGMA quick_check").get() as { quick_check?: string } | undefined;
@@ -136,6 +148,24 @@ async function main(): Promise<void> {
             }
         }
 
+        // #4390: v7 sources arrive with identity='' on every message row and
+        // the backend's init backfill only runs when the COLUMN was missing,
+        // so recompute from the CAS bytes here (same formula + same JOIN as
+        // mysql.ts init) or cross-save identity joins miss on migrated rows.
+        const [emptyIdentity] = (await pool.query(
+            "SELECT m.session_id AS sid, m.seq AS seq, c.bytes AS body " +
+                "FROM messages m JOIN content c ON c.hash = m.content_hash WHERE m.identity = ''",
+        )) as unknown as [{ sid: string; seq: number | string; body: string | Uint8Array }[]];
+        for (const r of emptyIdentity) {
+            const body = typeof r.body === "string" ? r.body : Buffer.from(r.body).toString("utf8");
+            await pool.query("UPDATE messages SET identity = ? WHERE session_id = ? AND seq = ?", [
+                identityOfStoredContent(body), r.sid, Number(r.seq),
+            ]);
+        }
+        if (emptyIdentity.length > 0) {
+            console.log(`[migrate]   messages: backfilled identity for ${emptyIdentity.length} empty row(s)`);
+        }
+
         const [bytes] = (await pool.query("SELECT COALESCE(SUM(byte_len), 0) AS b FROM content")) as unknown as [{ b: number | string }[]];
         const srcBytes = (db.prepare("SELECT COALESCE(SUM(byte_len), 0) AS b FROM content").get() as { b: number }).b;
         if (Number(bytes[0]?.b ?? 0) !== srcBytes) {
@@ -157,15 +187,25 @@ async function main(): Promise<void> {
         let bad = 0;
         let preexisting = 0;
         for (const id of ids) {
-            const rows = async (b: typeof src): Promise<Parameters<typeof loadLegacyView>[0]> => ({
-                session: await b.getSessionRow(id),
-                messages: await b.getMessages(id),
-                blocks: await b.getBlocks(id),
-                deadRefs: await b.getDeadRefs(id),
-                refs: await b.getRefs(id),
-            });
-            const a = JSON.stringify(loadLegacyView(await rows(src)));
-            const b = JSON.stringify(loadLegacyView(await rows(dst)));
+            const rows = async (b: typeof src) => {
+                const session = await b.getSessionRow(id);
+                return session === null ? null : {
+                    session,
+                    messages: await b.getMessages(id),
+                    blocks: await b.getBlocks(id),
+                    deadRefs: await b.getDeadRefs(id),
+                    refs: await b.getRefs(id),
+                };
+            };
+            const aRows = await rows(src);
+            const bRows = await rows(dst);
+            if (!aRows || !bRows) {
+                bad++;
+                console.error(`[migrate]   ${id}: missing session row on the ${aRows ? "target" : "source"} side`);
+                continue;
+            }
+            const a = JSON.stringify(loadLegacyView(aRows));
+            const b = JSON.stringify(loadLegacyView(bRows));
             // Projections can already be stale in the source (re-minted refs);
             // parity is what matters, not per-side ok-ness.
             const projA = JSON.stringify(await src.verifyProjections(id));
@@ -186,6 +226,7 @@ async function main(): Promise<void> {
         await src.close();
         await dst.close();
     }
+    db.close();
     console.log(process.exitCode ? "[migrate] finished with errors" : "[migrate] done");
 }
 
