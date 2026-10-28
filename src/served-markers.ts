@@ -82,9 +82,19 @@ const PEER_FILE_FRESH_MS = 30_000;
 /** reapStaleWriterMarkers removes files whose pid is dead AND whose mtime is
  *  older than this. */
 const STALE_REAP_MS = 60 * 60_000;
+/** Same-PID markers that predate this process's boot by more than this margin
+ *  belong to an earlier container generation (the PID was reused, not shared)
+ *  — the margin absorbs clock/rounding skew between generations (#3923). */
+const SAME_PID_GENERATION_MARGIN_MS = 1_000;
 
 export function writerMarkerDir(stateDirPath: string): string {
     return path.join(stateDirPath, "writers");
+}
+
+/** This process's boot time (ms epoch), derived from uptime against the
+ *  caller's clock so tests can pin it. */
+export function processStartMs(now: number): number {
+    return now - Math.round(process.uptime() * 1000);
 }
 
 let tmpSeq = 0;
@@ -221,6 +231,8 @@ export function createServedMarkerWriter(identity: WriterIdentity, dir: string, 
  *  window by a LIVE foreign instance (pid alive or file fresh). Markers
  *  carrying stoppedAt (graceful shutdown) are skipped unconditionally — a
  *  restart flow's predecessor died seconds ago and must not raise an alarm.
+ *  Same-PID markers from an earlier container generation (booted before this
+ *  process) are likewise skipped — the PID was reused, not shared (#3923).
  *  Malformed or tearing files are skipped silently — a marker is
  *  observability, not data. */
 export function findContestedWriters(dir: string, selfInstanceId: string, sessionId: string, now: number): Array<WriterIdentity & { servedAt: number }> {
@@ -241,13 +253,13 @@ export function findContestedWriters(dir: string, selfInstanceId: string, sessio
             const at = raw.servedAt !== null && typeof raw.servedAt === "object" ? (raw.servedAt as Record<string, unknown>)[sessionId] : undefined;
             if (typeof at !== "number" || now - at > CONTEST_WINDOW_MS) continue;
             const mtimeMs = fs.statSync(file).mtimeMs;
-            // #container-split-brain: in containers PID is typically 1 across restarts.
-            // If the peer has the same PID as this process but a different startedAt (or mtime
-            // precedes this process's boot), it is a prior generation, not a concurrent peer.
+            // #3923: in containers PID is typically 1 across restarts. A marker
+            // that shares our PID but predates this process's boot belongs to a
+            // prior container generation, not a live twin (older builds carry no
+            // startedAt — the marker mtime then stands in for their last write).
             const samePid = typeof raw.pid === "number" && raw.pid === process.pid;
             const peerStartedAt = typeof raw.startedAt === "number" ? raw.startedAt : mtimeMs;
-            const procStartedAt = Date.now() - Math.round(process.uptime() * 1000);
-            if (samePid && peerStartedAt < procStartedAt - 1000) continue;
+            if (samePid && peerStartedAt < processStartMs(now) - SAME_PID_GENERATION_MARGIN_MS) continue;
 
             const alive = typeof raw.pid === "number" ? isPidAlive(raw.pid) : false;
             if (!alive && now - mtimeMs > PEER_FILE_FRESH_MS) continue;
