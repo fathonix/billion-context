@@ -24,6 +24,7 @@ export interface WriterIdentity {
     /** #3923/#3959: this instance's lane (e.g. "pi", "dsh") — additive;
      *  markers written by older builds carry none and stay valid. */
     lane?: string;
+    startedAt?: number;
 }
 
 interface WriterMarkerFile {
@@ -33,6 +34,7 @@ interface WriterMarkerFile {
     origin: string;
     version: string;
     lane?: string;
+    startedAt?: number;
     /** Set only by a graceful dispose(): this instance recorded its FINAL
      *  marker and will never commit again. Peers skip such markers outright —
      *  a positively-known dead predecessor is not a concurrent writer, even
@@ -145,6 +147,7 @@ export function createServedMarkerWriter(identity: WriterIdentity, dir: string, 
             origin: identity.origin,
             version: identity.version,
             ...(identity.lane === undefined || identity.lane === "" ? {} : { lane: identity.lane }),
+            ...(typeof identity.startedAt === "number" ? { startedAt: identity.startedAt } : {}),
             ...(stoppedAt === undefined ? {} : { stoppedAt }),
             servedAt: Object.fromEntries(servedAt),
         };
@@ -238,6 +241,14 @@ export function findContestedWriters(dir: string, selfInstanceId: string, sessio
             const at = raw.servedAt !== null && typeof raw.servedAt === "object" ? (raw.servedAt as Record<string, unknown>)[sessionId] : undefined;
             if (typeof at !== "number" || now - at > CONTEST_WINDOW_MS) continue;
             const mtimeMs = fs.statSync(file).mtimeMs;
+            // #container-split-brain: in containers PID is typically 1 across restarts.
+            // If the peer has the same PID as this process but a different startedAt (or mtime
+            // precedes this process's boot), it is a prior generation, not a concurrent peer.
+            const samePid = typeof raw.pid === "number" && raw.pid === process.pid;
+            const peerStartedAt = typeof raw.startedAt === "number" ? raw.startedAt : mtimeMs;
+            const procStartedAt = Date.now() - Math.round(process.uptime() * 1000);
+            if (samePid && peerStartedAt < procStartedAt - 1000) continue;
+
             const alive = typeof raw.pid === "number" ? isPidAlive(raw.pid) : false;
             if (!alive && now - mtimeMs > PEER_FILE_FRESH_MS) continue;
             out.push({
@@ -246,6 +257,7 @@ export function findContestedWriters(dir: string, selfInstanceId: string, sessio
                 origin: typeof raw.origin === "string" ? raw.origin : "unknown",
                 version: typeof raw.version === "string" ? raw.version : "unknown",
                 lane: typeof raw.lane === "string" && raw.lane !== "" ? raw.lane : undefined,
+                ...(typeof raw.startedAt === "number" ? { startedAt: raw.startedAt } : {}),
                 servedAt: at,
             });
         } catch {

@@ -168,3 +168,18 @@ test("reapStaleWriterMarkers removes dead+stale files, keeps live and recent one
     assert.equal(fs.existsSync(deadFile), false, "provably-dead + beyond reap horizon → removed");
     assert.equal(fs.existsSync(liveFile), true, "live pid → kept regardless of age");
 });
+
+test("container restart with same PID (pid 1) does not falsely contest prior generation", () => {
+    const dir = writerMarkerDir(freshDir("bili-container-pid1-"));
+    const priorGenerationBoot = Date.now() - 30_000;
+    const priorPeer: WriterIdentity = {
+        instanceId: "prior-container-gen",
+        pid: process.pid,
+        origin: "http://127.0.0.1:8787",
+        version: "0.1.204",
+        startedAt: priorGenerationBoot,
+    };
+    writePeerMarker(dir, priorPeer, { "sess-container": Date.now() - 5000 });
+    const found = findContestedWriters(dir, SELF.instanceId, "sess-container", Date.now());
+    assert.equal(found.length, 0, "prior container generation with same PID is not a live peer");
+});
