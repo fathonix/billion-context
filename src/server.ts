@@ -1163,7 +1163,7 @@ export async function startServer(opts: ProxyOptions): Promise<http.Server> {
         {
             const markerDir = writerMarkerDir(stateDir());
             servedWriter = createServedMarkerWriter(
-                { instanceId, pid: process.pid, origin, version: VERSION },
+                { instanceId, pid: process.pid, origin, version: VERSION, startedAt: Date.now() - Math.round(process.uptime() * 1000) },
                 markerDir,
                 (level, msg) => log(level, msg),
             );

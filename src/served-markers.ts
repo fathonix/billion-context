@@ -21,6 +21,7 @@ export interface WriterIdentity {
     pid: number;
     origin: string;
     version: string;
+    startedAt?: number;
 }
 
 interface WriterMarkerFile {
@@ -29,6 +30,7 @@ interface WriterMarkerFile {
     pid: number;
     origin: string;
     version: string;
+    startedAt?: number;
     /** sessionId → last commit time (ms epoch). */
     servedAt: Record<string, number>;
 }
@@ -114,6 +116,7 @@ export function createServedMarkerWriter(identity: WriterIdentity, dir: string, 
             pid: identity.pid,
             origin: identity.origin,
             version: identity.version,
+            ...(typeof identity.startedAt === "number" ? { startedAt: identity.startedAt } : {}),
             servedAt: Object.fromEntries(servedAt),
         };
         try {
@@ -192,6 +195,14 @@ export function findContestedWriters(dir: string, selfInstanceId: string, sessio
             const at = raw.servedAt !== null && typeof raw.servedAt === "object" ? (raw.servedAt as Record<string, unknown>)[sessionId] : undefined;
             if (typeof at !== "number" || now - at > CONTEST_WINDOW_MS) continue;
             const mtimeMs = fs.statSync(file).mtimeMs;
+            // #container-split-brain: in containers PID is typically 1 across restarts.
+            // If the peer has the same PID as this process but a different startedAt (or mtime
+            // precedes this process's boot), it is a prior generation, not a concurrent peer.
+            const samePid = typeof raw.pid === "number" && raw.pid === process.pid;
+            const peerStartedAt = typeof raw.startedAt === "number" ? raw.startedAt : mtimeMs;
+            const procStartedAt = Date.now() - Math.round(process.uptime() * 1000);
+            if (samePid && peerStartedAt < procStartedAt - 1000) continue;
+
             const alive = typeof raw.pid === "number" ? isPidAlive(raw.pid) : false;
             if (!alive && now - mtimeMs > PEER_FILE_FRESH_MS) continue;
             out.push({
@@ -199,6 +210,7 @@ export function findContestedWriters(dir: string, selfInstanceId: string, sessio
                 pid: typeof raw.pid === "number" ? raw.pid : -1,
                 origin: typeof raw.origin === "string" ? raw.origin : "unknown",
                 version: typeof raw.version === "string" ? raw.version : "unknown",
+                ...(typeof raw.startedAt === "number" ? { startedAt: raw.startedAt } : {}),
                 servedAt: at,
             });
         } catch {
