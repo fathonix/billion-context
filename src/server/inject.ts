@@ -7,6 +7,8 @@ import { absorbEnabled, absorbToolName } from "../absorb.js";
 import { BILI_ACP_TOOLS_ANTHROPIC, BILI_ACP_TOOLS_ANTHROPIC_NO_RANGE, BILI_ACP_TOOLS_GOOGLE, BILI_ACP_TOOLS_GOOGLE_NO_RANGE, BILI_ACP_TOOLS_OPENAI, BILI_ACP_TOOLS_OPENAI_NO_RANGE, BILI_ACP_TOOLS_RESPONSES, buildAbsorbSystemPrompt, buildAcpTagsOnlyPrompt, buildCompressSystemPrompt, packOwnsDescription, ptcNoteMode, withAcpNotes, withAcpNotesOpenAI, withMarkerIntegrityNote, withSummaryBudgetNote, withProjectAttribution } from "../compress-tool.js";
 import { externalSummaryEnabled, withExternalSummaryTools } from "../external-summary-surface.js";
 import { forceTextProtocol as knobForceTextProtocol, renderNone as knobRenderNone } from "../knobs.js";
+import { renderMemoryToc, resolveMemoryToc } from "../memory-toc.js";
+import type { CompressionBlock } from "acp-kernel";
 
 export function injectSystem(
     parsed: AnthropicRequestBody,
@@ -16,6 +18,10 @@ export function injectSystem(
     surface?: PackSurface,
     visibilityMarkers = true,
     suppressCompressPrompt = false,
+    /** Session memory TOC (already rendered and gated by the caller). It is
+     *  appended LAST so the static compress prompt above stays byte-stable
+     *  between folds — only a new block changes these bytes. */
+    memoryToc?: string,
 ): string | AnthropicRequestBody["system"] {
     // ONLY the static compress prompt goes into the system block — it is the
     // prefix-cache anchor and must stay byte-stable across turns. The nudge
@@ -29,6 +35,7 @@ export function injectSystem(
         if (tagsOnly) parts.push(tagsOnly);
     }
     if (opts.compress.injectTool && absorbEnabled(config)) parts.push(buildAbsorbSystemPrompt(absorbToolName(config)));
+    if (memoryToc !== undefined && memoryToc !== "") parts.push(memoryToc);
     if (parts.length === 0) return parsed.system;
     // #1876: APPEND the prompt as a trailing block (client blocks byte-exact)
     // instead of merging everything into one block via kernel buildSystem.
@@ -96,6 +103,24 @@ export function injectGoogleTool(tools: GoogleTool[] | undefined, extra?: { name
     const missing = wanted.filter((t) => !present.has(t.name));
     if (missing.length === 0) return tools;
     return [...tools, { functionDeclarations: missing as GoogleFunctionDeclaration[] }];
+}
+
+/** #memory-toc: render the session memory index for the system block, or
+ *  undefined when the knob is off / the session holds no active blocks.
+ *  Deliberately cheap: block topics + summaries already live in session state,
+ *  and the string only changes when a fold creates or rewrites a block, so the
+ *  prefix cache survives every non-folding turn. */
+export function renderSessionMemoryToc(
+    session: { state: { blocks: readonly CompressionBlock[] } },
+    config: Config,
+    log?: (level: string, msg: string) => void,
+): string | undefined {
+    const fileValue = (config as { compress?: { memoryToc?: boolean } }).compress?.memoryToc;
+    if (!resolveMemoryToc(process.env, fileValue)) return undefined;
+    const toc = renderMemoryToc(session.state.blocks as never);
+    if (toc === null) return undefined;
+    log?.("info", `[memory-toc] injected ${session.state.blocks.filter((b) => b.active).length} block topic(s) into system context`);
+    return toc;
 }
 
 /** When true, the Responses path teaches compression via a text trigger

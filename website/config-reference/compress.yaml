@@ -213,6 +213,26 @@ entries:
     desc_zh: "在 compress/decompress/search_context/acp_status 结果后追加可见性标记；关闭可抑制模型模仿叙述。"
     site_en: "Append 📦/❌ visibility markers after compress/decompress/search_context/acp_status results (on by default; off stops imitated narration)."
     site_zh: "在 compress/decompress/search_context/acp_status 结果后追加 📦/❌ 可见性标记（默认开；关闭可抑制模型模仿叙述）。"
+  - key: compress.streamMarkers
+    type: boolean
+    default: "true"
+    group: compress
+    id: ct.sm
+    render: compress-row
+    desc_en: "Stream visibility markers to the client in real-time; off keeps them in history only."
+    desc_zh: "实时向客户端流式传输可见性标记；关闭时仅保留在历史记录中。"
+    site_en: "Stream visibility markers to the client in real-time (on by default; off keeps them in history only)."
+    site_zh: "实时向客户端流式传输可见性标记（默认开；关闭时仅保留在历史记录中）。"
+  - key: compress.memoryToc
+    type: boolean
+    default: "true"
+    group: compress
+    id: ct.mtoc
+    render: compress-row
+    desc_en: "Inject a compact single-line index of active memory blocks into system context."
+    desc_zh: "向系统上下文中注入紧凑的活动内存块单行索引。"
+    site_en: "Inject a compact single-line index of active compression blocks into system context (on by default)."
+    site_zh: "向系统上下文中注入紧凑的活动压缩块单行索引（默认开）。"
   - key: compress.rules
     type: boolean
     default: "false"

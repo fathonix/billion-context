@@ -33,7 +33,7 @@ import { imageRescaleMaxDim, renderNone as knobRenderNone } from "../knobs.js";
 import { applyImageRescalePass } from "../image-rescale.js";
 import { clampOutgoingOutput, countSystemAndToolsTokens, dshLedgerFloorTokens, emergencyNudge, emergencyNudgeArmed } from "./budget.js";
 import { effectiveAbsorbBlock } from "./prepare-responses.js";
-import { injectOpenaiTool, injectTool } from "./inject.js";
+import { injectOpenaiTool, injectTool, renderSessionMemoryToc } from "./inject.js";
 import { nudgeOn, resolveLaneDecisions, surfaceOffDetail } from "./lane-decisions.js";
 
 export async function prepareOpenai(
@@ -326,6 +326,9 @@ export async function prepareOpenai(
             if (tagsOnly) sysParts.push(tagsOnly);
         }
         if (absorbActive) sysParts.push(buildAbsorbSystemPrompt(absorbToolName(loopConfig)));
+        // #memory-toc: appended last, same cache-anchor rules as the compress prompt.
+        const memoryToc = renderSessionMemoryToc(session, loopConfig, log);
+        if (memoryToc) sysParts.push(memoryToc);
         rebuiltMessages = injectOpenaiSystem(rebuiltMessages, sysParts);
         if (sysNotes.length > 0) {
             rebuiltMessages = [...rebuiltMessages, ...sysNotes.map((text) => ({ role: "user" as const, content: text }))];

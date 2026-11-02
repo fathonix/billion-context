@@ -402,6 +402,13 @@ export type CompressSettings = {
      *  keeping it in rebuilt history — the cosmetic-only half of
      *  `visibilityMarkers: false`. Default `true`. */
     streamMarkers?: boolean;
+    /** #memory-toc: inject a compact one-line index of the session's ACTIVE
+     *  compression blocks (`bN [T2]: topic`) into the system block so the model
+     *  always knows which past milestones are available for
+     *  `search_context`/`decompress` instead of searching blind or re-deriving
+     *  forgotten decisions. Rendered last, so the cache anchor above it stays
+     *  byte-stable between folds. Env: `BILI_MEMORY_TOC`. Default `true`. */
+    memoryToc?: boolean;
      /** Force preflight summarization calls to use streaming (SSE) instead of
       *  the default non-stream call (#2133). The error-driven self-learn flag
       *  (`session.metadata.preflightStreamSummary`) fires on any 400 from a
@@ -2170,7 +2177,7 @@ const COMPRESS_SETTING_FIELDS = new Set([
     "minCompressRange", "minCompressRangeChars",
     "outputHeadroomMaxPct", "tiers", "protectedLatestTools", "protectedTools",
     "neverPreserveRecentTools", "preserveRecentTools",
-    "visibilityMarkers", "streamMarkers", "rules", "injectTool", "injectNudge",
+    "visibilityMarkers", "streamMarkers", "memoryToc", "rules", "injectTool", "injectNudge",
     "acknowledgePromptsRisk", "absorb", "ccr", "search",
     "prompts", "promptPack", "reasoningGuard", "outputSteering", "priceProfile",
     "reconcile", "streamSummary",
@@ -2914,6 +2921,10 @@ export function parseCompressSettings(v: unknown): (CompressSettings & { injectT
     if ("streamMarkers" in obj) {
         if (typeof obj.streamMarkers !== "boolean") ok = false;
         else out.streamMarkers = obj.streamMarkers;
+    }
+    if ("memoryToc" in obj) {
+        if (typeof obj.memoryToc !== "boolean") ok = false;
+        else out.memoryToc = obj.memoryToc;
     }
     if ("streamSummary" in obj) {
         if (typeof obj.streamSummary !== "boolean") ok = false;
