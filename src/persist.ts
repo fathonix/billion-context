@@ -28,7 +28,7 @@ import { VERSION } from "./version.js";
 import { createStorageCodec, parseEncryptionKey } from "./encrypt.js";
 import { PersistEpermAlert } from "./persist-eperm.js";
 import { createInitialState, defaultCountTokens, prune, type CompressionState, type CoreMessage, type MessageContentStore } from "acp-kernel";
-import { markDirty, scrubTurnSeparatorIds } from "./session.js";
+import { markDirty, scrubTurnSeparatorIds, peekSession } from "./session.js";
 import { LazyBlockContents, isDroppedMetadata, lazyMetadata } from "./session.js";
 import type { Session, BlockContent, BlockView } from "./session.js";
 import { orphanContents, resolveStorageMode, UnifiedShadow, type StorageMode } from "./storage/shadow.js";
@@ -2308,6 +2308,9 @@ export class SessionStore {
                 try {
                     this.guardedBuild(session)();
                     this.maybeCutForkBase(session);
+                    // #5190 Option C: this build was synchronous and landed,
+                    // so the raw tail is durable — discharge the resident AST.
+                    this.foldResidentTail(session);
                     // #3135 ①/#3818: the 3-strike may have fired INSIDE that
                     // build (shadow.record's catch disables the sidecar after
                     // consecutive failures). writerOffActive() turns false for
@@ -2365,6 +2368,12 @@ export class SessionStore {
             // keeps a failed timer write from becoming an unhandledRejection.
             void this.store.writeNow(id, build).then(() => {
                 this.stampOwnWrite(id); // #3406: the write LANDED — prove our bytes are on disk
+                // #5190 Option C: discharge the raw request AST only AFTER a
+                // write carrying it has landed. Folding before the build (the
+                // rejected #4967 shape) let guardedBuild skip the raw tail
+                // entirely — silent data loss on fast turns.
+                const s = peekSession(id);
+                if (s) this.foldResidentTail(s);
             }).catch(() => {});
         }, this.debounceMs);
         timer.unref?.();

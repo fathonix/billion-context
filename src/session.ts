@@ -1105,6 +1105,11 @@ export function acquireInFlight(session: Session): void {
 /** Release an in-use marker. Decrements; the session becomes evictable again. */
 export function releaseInFlight(session: Session): void {
     if (session.inFlight > 0) session.inFlight--;
+    // Discharge of the raw lastMessages AST is owned by the persistence layer:
+    // `SessionStore.foldResidentTail` runs in the save-completion callback and
+    // in `writeNow`, i.e. only AFTER a write carrying the raw tail has landed.
+    // Folding here (before the debounced save built its record) let
+    // `guardedBuild` skip persisting that tail entirely — silent data loss.
     residentWeights.delete(session);
     // Active sessions are pinned. Once a request finishes, discharge its
     // growth before admitting more historical sessions into the cache.
