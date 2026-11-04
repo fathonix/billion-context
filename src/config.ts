@@ -409,6 +409,12 @@ export type CompressSettings = {
      *  forgotten decisions. Rendered last, so the cache anchor above it stays
      *  byte-stable between folds. Env: `BILI_MEMORY_TOC`. Default `true`. */
     memoryToc?: boolean;
+    /** #memory-toc: number of MOST RECENT active blocks rendered in the
+     *  memory index. Older blocks collapse into a single overflow range line;
+     *  `search_context` continues to reach them. A value <= 0 lists every
+     *  active block without truncation. Env: `BILI_MEMORY_TOC_WINDOW`.
+     *  Default 10. */
+    memoryTocWindow?: number;
      /** Force preflight summarization calls to use streaming (SSE) instead of
       *  the default non-stream call (#2133). The error-driven self-learn flag
       *  (`session.metadata.preflightStreamSummary`) fires on any 400 from a
@@ -2177,7 +2183,7 @@ const COMPRESS_SETTING_FIELDS = new Set([
     "minCompressRange", "minCompressRangeChars",
     "outputHeadroomMaxPct", "tiers", "protectedLatestTools", "protectedTools",
     "neverPreserveRecentTools", "preserveRecentTools",
-    "visibilityMarkers", "streamMarkers", "memoryToc", "rules", "injectTool", "injectNudge",
+    "visibilityMarkers", "streamMarkers", "memoryToc", "memoryTocWindow", "rules", "injectTool", "injectNudge",
     "acknowledgePromptsRisk", "absorb", "ccr", "search",
     "prompts", "promptPack", "reasoningGuard", "outputSteering", "priceProfile",
     "reconcile", "streamSummary",
@@ -2925,6 +2931,11 @@ export function parseCompressSettings(v: unknown): (CompressSettings & { injectT
     if ("memoryToc" in obj) {
         if (typeof obj.memoryToc !== "boolean") ok = false;
         else out.memoryToc = obj.memoryToc;
+    }
+    if ("memoryTocWindow" in obj) {
+        const v = obj.memoryTocWindow;
+        if (typeof v !== "number" || !Number.isFinite(v)) ok = false;
+        else out.memoryTocWindow = Math.trunc(v);
     }
     if ("streamSummary" in obj) {
         if (typeof obj.streamSummary !== "boolean") ok = false;

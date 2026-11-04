@@ -193,6 +193,8 @@
 | `BILI_GUARDRAIL_REPETITION` | guardrails.repetition，默认 on——相同调用循环熔断（warn 3 / abort 5） |
 | `BILI_GUARDRAIL_TEXT_RUN_THRESHOLD` | guardrails.textRunThreshold，默认 200——输出端同字符连击熔断阈值（proxy 进程侧读，#3406 item 1；0 关闭） |
 | `BILI_AUTO_MODE_FORGE` | autoModeForge.enabled，默认 on——auto-mode 分类判定本地 forge，零出账/计费（`=0` 恢复纯透传，留给付真实判定费的用户，#2740 owner 决定） |
+| `BILI_MEMORY_TOC` | compress.memoryToc 的 env 覆盖（#memory-toc）：`=0`/`false` 禁用系统提示词尾部压缩块目录；缺省按文件配置（默认 true） |
+| `BILI_MEMORY_TOC_WINDOW` | compress.memoryTocWindow 的 env 覆盖（#memory-toc）：TOC 显示的最近活跃块数量（整数，默认 10；`<=0` 显示全量） |
 
 ## 3. 非环境变量的 BILI_* 标识符（勿与上表混淆）
 

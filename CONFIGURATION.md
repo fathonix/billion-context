@@ -268,6 +268,9 @@ This index is generated from `website/config-reference/*.yaml` — edit the seed
 | `compress.neverPreserveRecentTools` | string[] ([] valid) | ["decompress", "search_context", "read", "bash"] (kernel) | — | Excluded from the recent protection zone (immediately compressible); an empty array excludes nothing (maximum protection). |
 | `compress.preserveRecentTools` | string[] | n/a (subtraction form) | — | Subtraction form: recent-zone tools minus this list get full protection; an empty array here is rejected as a typo. |
 | `compress.visibilityMarkers` | boolean | true | — | Append visibility markers after compress/decompress/search_context/acp_status results; off stops imitated narration. |
+| `compress.streamMarkers` | boolean | true | — | Stream visibility markers to the client in real-time; off keeps them in history only. |
+| `compress.memoryToc` | boolean | true | BILI_MEMORY_TOC | Inject a compact single-line index of active memory blocks into system context. |
+| `compress.memoryTocWindow` | number | 10 | BILI_MEMORY_TOC_WINDOW | Number of most-recent active blocks rendered in the memory index; older blocks collapse into an overflow notice. |
 | `compress.rules` | boolean | false | — | Persistent model reminders delivered through an injected acp_rule tool, hard-protected from folds; pi/omp expose an /acp-rule command. Proxy-mode only — inert in plugin mode, where the host owns the tool surface. |
 | `compress.injectTool` | boolean | true | ACP_COMPRESS_TOOL | Register the acp_compress tool for clients (global level only). |
 | `compress.injectNudge` | boolean | true | ACP_COMPRESS_NUDGE | Send growth nudges as the window fills (global level only). |
@@ -1776,6 +1779,8 @@ File keys resolve only when the matching env var is unset. Defaults in parenthes
 | `BILI_MAX_SESSIONS` | `sessions.max` | 256 |
 | `BILI_MAX_SHRINK_PER_COMPRESS` | `network.maxShrinkPerCompress` | unset |
 | `BILI_MCP_PROXY` | `native.attachUrl` | unset (discover per lane) |
+| `BILI_MEMORY_TOC` | `compress.memoryToc` | true |
+| `BILI_MEMORY_TOC_WINDOW` | `compress.memoryTocWindow` | 10 |
 | `BILI_MITM` | `mitm.enabled` | true |
 | `BILI_MITM_DOMAINS` | `mitm.domains` | [] |
 | `BILI_MITM_HANDSHAKE_TIMEOUT_MS` | `mitm.handshakeTimeoutMs` | 10000 |

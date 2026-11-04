@@ -7,7 +7,7 @@ import { absorbEnabled, absorbToolName } from "../absorb.js";
 import { BILI_ACP_TOOLS_ANTHROPIC, BILI_ACP_TOOLS_ANTHROPIC_NO_RANGE, BILI_ACP_TOOLS_GOOGLE, BILI_ACP_TOOLS_GOOGLE_NO_RANGE, BILI_ACP_TOOLS_OPENAI, BILI_ACP_TOOLS_OPENAI_NO_RANGE, BILI_ACP_TOOLS_RESPONSES, buildAbsorbSystemPrompt, buildAcpTagsOnlyPrompt, buildCompressSystemPrompt, packOwnsDescription, ptcNoteMode, withAcpNotes, withAcpNotesOpenAI, withMarkerIntegrityNote, withSummaryBudgetNote, withProjectAttribution } from "../compress-tool.js";
 import { externalSummaryEnabled, withExternalSummaryTools } from "../external-summary-surface.js";
 import { forceTextProtocol as knobForceTextProtocol, renderNone as knobRenderNone } from "../knobs.js";
-import { renderMemoryToc, resolveMemoryToc } from "../memory-toc.js";
+import { renderMemoryToc, resolveMemoryToc, resolveMemoryTocWindow } from "../memory-toc.js";
 import type { CompressionBlock } from "acp-kernel";
 
 export function injectSystem(
@@ -106,8 +106,8 @@ export function injectGoogleTool(tools: GoogleTool[] | undefined, extra?: { name
 }
 
 /** #memory-toc: render the session memory index for the system block, or
- *  undefined when the knob is off / the session holds no active blocks.
- *  Deliberately cheap: block topics + summaries already live in session state,
+ *  `undefined` when the knob is off or the session holds no active blocks.
+ *  Deliberately cheap: block topics/summaries already live in session state,
  *  and the string only changes when a fold creates or rewrites a block, so the
  *  prefix cache survives every non-folding turn. */
 export function renderSessionMemoryToc(
@@ -115,11 +115,14 @@ export function renderSessionMemoryToc(
     config: Config,
     log?: (level: string, msg: string) => void,
 ): string | undefined {
-    const fileValue = (config as { compress?: { memoryToc?: boolean } }).compress?.memoryToc;
-    if (!resolveMemoryToc(process.env, fileValue)) return undefined;
-    const toc = renderMemoryToc(session.state.blocks as never);
+    const compress = (config as { compress?: { memoryToc?: boolean; memoryTocWindow?: number } }).compress;
+    if (!resolveMemoryToc(process.env, compress?.memoryToc)) return undefined;
+    const window = resolveMemoryTocWindow(process.env, compress?.memoryTocWindow);
+    const blocks = session.state.blocks;
+    const toc = renderMemoryToc(blocks as never, { window });
     if (toc === null) return undefined;
-    log?.("info", `[memory-toc] injected ${session.state.blocks.filter((b) => b.active).length} block topic(s) into system context`);
+    const activeCount = blocks.filter((b) => b.active !== false).length;
+    log?.("info", `[memory-toc] injected ${activeCount} block topic(s) into system context (window=${window > 0 ? window : "all"})`);
     return toc;
 }
 

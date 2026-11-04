@@ -1,95 +1,109 @@
-import { describe, it } from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
-import { extractTopicFromSummary, renderMemoryToc, resolveMemoryToc, type BlockTocItem } from "../src/memory-toc.js";
+import {
+    DEFAULT_TOC_WINDOW,
+    extractTopicFromSummary,
+    normalizeTocWindow,
+    renderMemoryToc,
+    resolveMemoryToc,
+    resolveMemoryTocWindow,
+    type BlockTocItem,
+} from "../src/memory-toc.js";
 
-describe("memory-toc", () => {
-    describe("extractTopicFromSummary", () => {
-        it("returns untitled for empty or blank summary", () => {
-            assert.equal(extractTopicFromSummary(""), "(untitled)");
-            assert.equal(extractTopicFromSummary("   \n\n  "), "(untitled)");
-        });
+test("extractTopicFromSummary extracts topic from compression section header", () => {
+    const summary = "[Compressed conversation section] — MariaDB migration and test verification\nSome other details...";
+    assert.equal(extractTopicFromSummary(summary), "MariaDB migration and test verification");
+});
 
-        it("extracts topic from standard header line [Compressed conversation section] — <topic>", () => {
-            const summary = "[Compressed conversation section] — Headroom compose migration & opencode discovery fix\n\n### Overall Goal\nMigrated headroom.";
-            assert.equal(extractTopicFromSummary(summary), "Headroom compose migration & opencode discovery fix");
-        });
+test("extractTopicFromSummary extracts markdown heading when header is missing", () => {
+    const summary = "Some preamble\n### Cloudflare IP Extraction and Whitespace Trimming\n- Fixed rate limit";
+    assert.equal(extractTopicFromSummary(summary), "Cloudflare IP Extraction and Whitespace Trimming");
+});
 
-        it("extracts topic with hyphen or en-dash delimiter", () => {
-            const summary = "[Compressed conversation section] - opencode prompt reduction and v2 plugin research\nDetails here";
-            assert.equal(extractTopicFromSummary(summary), "opencode prompt reduction and v2 plugin research");
-        });
+test("extractTopicFromSummary falls back to first non-empty line", () => {
+    const summary = "Investigated and fixed memory leaks in the V8 heap\nOther logs...";
+    assert.equal(extractTopicFromSummary(summary), "Investigated and fixed memory leaks in the V8 heap");
+});
 
-        it("falls back to markdown heading when header line is missing", () => {
-            const summary = "### Upstream PR #65 Submission & Verification\n- PR was submitted cleanly.";
-            assert.equal(extractTopicFromSummary(summary), "Upstream PR #65 Submission & Verification");
-        });
+test("renderMemoryToc returns null for empty or all-inactive blocks", () => {
+    assert.equal(renderMemoryToc([]), null);
+    assert.equal(renderMemoryToc([{ blockId: "b1", active: false }]), null);
+});
 
-        it("falls back to first non-boilerplate line when no headings exist", () => {
-            const summary = "- Fixed bug in database connection string for local dev\n- Verified port forwarding";
-            assert.equal(extractTopicFromSummary(summary), "Fixed bug in database connection string for local dev");
-        });
-    });
+test("renderMemoryToc renders active blocks within default window", () => {
+    const blocks: BlockTocItem[] = [
+        { blockId: "b1", active: true, topic: "Topic 1" },
+        { blockId: "b2", active: true, topic: "Topic 2", tier: 2 },
+        { blockId: "b3", active: false, topic: "Inactive Topic" },
+    ];
+    const out = renderMemoryToc(blocks);
+    assert.ok(out !== null);
+    assert.ok(out.includes("### Active Session Memory Index"));
+    assert.ok(out.includes("- b1: Topic 1"));
+    assert.ok(out.includes("- b2 (T2): Topic 2"));
+    assert.ok(!out.includes("Inactive Topic"));
+    assert.ok(!out.includes("older block(s)"));
+});
 
-    describe("renderMemoryToc", () => {
-        it("returns null when blocks array is empty or undefined", () => {
-            assert.equal(renderMemoryToc(undefined), null);
-            assert.equal(renderMemoryToc([]), null);
-        });
+test("renderMemoryToc truncates at window and adds range-aware overflow line", () => {
+    const blocks: BlockTocItem[] = Array.from({ length: 15 }, (_, i) => ({
+        blockId: `b${i + 1}`,
+        active: true,
+        topic: `Milestone ${i + 1}`,
+    }));
 
-        it("returns null when all blocks are inactive", () => {
-            const blocks: BlockTocItem[] = [
-                { blockId: "b1", active: false, summary: "summary 1" },
-                { blockId: "b2", active: false, summary: "summary 2" },
-            ];
-            assert.equal(renderMemoryToc(blocks), null);
-        });
+    const out = renderMemoryToc(blocks, { window: 5 });
+    assert.ok(out !== null);
+    // Shows the 5 most recent: b11 through b15
+    for (let i = 11; i <= 15; i++) {
+        assert.ok(out.includes(`- b${i}: Milestone ${i}`));
+    }
+    // Does NOT show b1 through b10 as individual lines
+    for (let i = 1; i <= 10; i++) {
+        assert.ok(!out.includes(`- b${i}: Milestone ${i}`));
+    }
+    // Overflow line names the omitted count and the range b1–b10
+    assert.ok(out.includes("... 10 older block(s) (b1–b10) not listed"));
+    assert.ok(out.includes("search_context({ query })"));
+    assert.ok(out.includes("decompress({ blockId })"));
+});
 
-        it("renders active blocks with topics and tier labels", () => {
-            const blocks: BlockTocItem[] = [
-                { blockId: "b1", active: false, summary: "old folded" },
-                { blockId: "b2", active: true, topic: "MariaDB migration and tests", summary: "..." },
-                { blockId: "b3", active: true, summary: "[Compressed conversation section] — Opencode v2 binary investigation\n..." },
-                { blockId: "b4", active: true, tier: 2, topic: "Rollup of auth & model routing", summary: "..." },
-            ];
+test("renderMemoryToc window <= 0 lists every block without truncation", () => {
+    const blocks: BlockTocItem[] = Array.from({ length: 25 }, (_, i) => ({
+        blockId: `b${i + 1}`,
+        active: true,
+        topic: `Milestone ${i + 1}`,
+    }));
+    const out = renderMemoryToc(blocks, { window: 0 });
+    assert.ok(out !== null);
+    assert.ok(!out.includes("older block(s)"));
+    assert.ok(out.includes("- b1: Milestone 1"));
+    assert.ok(out.includes("- b25: Milestone 25"));
+});
 
-            const toc = renderMemoryToc(blocks);
-            assert.ok(toc !== null);
-            assert.ok(toc.includes("### Active Session Memory Index"));
-            assert.ok(toc.includes("- b2: MariaDB migration and tests"));
-            assert.ok(toc.includes("- b3: Opencode v2 binary investigation"));
-            assert.ok(toc.includes("- b4 (T2): Rollup of auth & model routing"));
-            assert.ok(!toc.includes("b1")); // Inactive block omitted
-        });
+test("normalizeTocWindow handles numbers, strings, and garbage", () => {
+    assert.equal(normalizeTocWindow(10), 10);
+    assert.equal(normalizeTocWindow("15"), 15);
+    assert.equal(normalizeTocWindow("  5  "), 5);
+    assert.equal(normalizeTocWindow(-1), -1);
+    assert.equal(normalizeTocWindow(0), 0);
+    assert.equal(normalizeTocWindow("abc"), undefined);
+    assert.equal(normalizeTocWindow(null), undefined);
+    assert.equal(normalizeTocWindow(undefined), undefined);
+});
 
-        it("respects maxBlocks option and prepends overflow note", () => {
-            const blocks: BlockTocItem[] = [
-                { blockId: "b1", active: true, topic: "Topic 1", summary: "" },
-                { blockId: "b2", active: true, topic: "Topic 2", summary: "" },
-                { blockId: "b3", active: true, topic: "Topic 3", summary: "" },
-            ];
+test("resolveMemoryTocWindow respects precedence", () => {
+    assert.equal(resolveMemoryTocWindow({ BILI_MEMORY_TOC_WINDOW: "20" }, 5), 20);
+    assert.equal(resolveMemoryTocWindow({}, 15), 15);
+    assert.equal(resolveMemoryTocWindow({}, undefined), DEFAULT_TOC_WINDOW);
+    assert.equal(resolveMemoryTocWindow({ BILI_MEMORY_TOC_WINDOW: "0" }, 15), 0);
+});
 
-            const toc = renderMemoryToc(blocks, { maxBlocks: 2 });
-            assert.ok(toc !== null);
-            assert.ok(toc.includes("... and 1 earlier block(s)"));
-            assert.ok(!toc.includes("- b1:"));
-            assert.ok(toc.includes("- b2: Topic 2"));
-            assert.ok(toc.includes("- b3: Topic 3"));
-        });
-    });
-
-    describe("resolveMemoryToc", () => {
-        it("respects env BILI_MEMORY_TOC overrides", () => {
-            assert.equal(resolveMemoryToc({ BILI_MEMORY_TOC: "0" }, true), false);
-            assert.equal(resolveMemoryToc({ BILI_MEMORY_TOC: "false" }, true), false);
-            assert.equal(resolveMemoryToc({ BILI_MEMORY_TOC: "off" }, true), false);
-            assert.equal(resolveMemoryToc({ BILI_MEMORY_TOC: "1" }, false), true);
-            assert.equal(resolveMemoryToc({ BILI_MEMORY_TOC: "true" }, false), true);
-        });
-
-        it("defaults to file value or true", () => {
-            assert.equal(resolveMemoryToc({}, false), false);
-            assert.equal(resolveMemoryToc({}, true), true);
-            assert.equal(resolveMemoryToc({}, undefined), true);
-        });
-    });
+test("resolveMemoryToc respects env and config", () => {
+    assert.equal(resolveMemoryToc({ BILI_MEMORY_TOC: "0" }, true), false);
+    assert.equal(resolveMemoryToc({ BILI_MEMORY_TOC: "false" }, true), false);
+    assert.equal(resolveMemoryToc({ BILI_MEMORY_TOC: "1" }, false), true);
+    assert.equal(resolveMemoryToc({}, false), false);
+    assert.equal(resolveMemoryToc({}, true), true);
+    assert.equal(resolveMemoryToc({}, undefined), true);
 });

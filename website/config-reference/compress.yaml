@@ -226,6 +226,7 @@ entries:
   - key: compress.memoryToc
     type: boolean
     default: "true"
+    env: BILI_MEMORY_TOC
     group: compress
     id: ct.mtoc
     render: compress-row
@@ -233,6 +234,17 @@ entries:
     desc_zh: "向系统上下文中注入紧凑的活动内存块单行索引。"
     site_en: "Inject a compact single-line index of active compression blocks into system context (on by default)."
     site_zh: "向系统上下文中注入紧凑的活动压缩块单行索引（默认开）。"
+  - key: compress.memoryTocWindow
+    type: number
+    default: "10"
+    env: BILI_MEMORY_TOC_WINDOW
+    group: compress
+    id: ct.mtocw
+    render: compress-row
+    desc_en: "Number of most-recent active blocks rendered in the memory index; older blocks collapse into an overflow notice."
+    desc_zh: "内存索引中渲染的最近活动块数量；更早的块折叠为一条溢出提示。"
+    site_en: "Number of most-recent active blocks rendered in the memory index (default 10). Older blocks collapse into an overflow notice naming the omitted range; search_context continues to reach them. Value <= 0 lists every active block."
+    site_zh: "内存索引中渲染的最近活动块数量（默认 10）。更早的块折叠为标明遗漏范围的溢出提示；search_context 仍可检索它们。值 <= 0 列出全部活动块。"
   - key: compress.rules
     type: boolean
     default: "false"
